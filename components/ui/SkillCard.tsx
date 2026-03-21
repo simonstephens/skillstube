@@ -4,8 +4,8 @@ import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import type { SerializedSkill } from "@/db/schema"
-import type { Platform, TrustTier } from "@/lib/types"
-import { PLATFORM_LABELS } from "@/lib/types"
+import type { Platform } from "@/lib/types"
+import { PLATFORM_LABELS, parseTrustTier } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 import { TrustBadge } from "./TrustBadge"
@@ -31,7 +31,7 @@ export function SkillCard({ skill }: SkillCardProps) {
       >
         <CardContent className="flex flex-col gap-3 pt-4">
           <div className="flex items-start justify-between gap-2">
-            <TrustBadge tier={skill.trustTier as TrustTier} />
+            <TrustBadge tier={parseTrustTier(skill.trustTier)} />
             {skill.upvoteCount > 0 ? (
               <span
                 className="inline-flex shrink-0 items-center gap-0.5 text-xs font-medium text-muted-foreground"

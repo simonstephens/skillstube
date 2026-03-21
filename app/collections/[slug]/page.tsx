@@ -1,12 +1,13 @@
 import { getAllCollectionSlugs, getCollectionBySlug, getCollectionSkills } from '@/db/queries';
-import type { SerializedSkill, Skill } from '@/db/schema';
 import { notFound } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 
 import { CopyButton } from '@/components/ui/CopyButton';
 import { SkillCard } from '@/components/ui/SkillCard';
 import { TrustBadge } from '@/components/ui/TrustBadge';
-import type { TrustTier } from '@/lib/types';
+import { serializeSkill } from '@/lib/serialize';
+import { getSiteUrl, safeJsonLd } from '@/lib/site-url';
+import { parseTrustTier } from '@/lib/types';
 
 export const revalidate = 60;
 export const dynamicParams = false;
@@ -30,21 +31,6 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   };
 }
 
-function serializeSkill(skill: Skill): SerializedSkill {
-  return {
-    ...skill,
-    createdAt: skill.createdAt.toISOString(),
-    updatedAt: skill.updatedAt.toISOString(),
-  };
-}
-
-function siteOrigin(): string {
-  const explicit = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '');
-  if (explicit) return explicit;
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL.replace(/^https?:\/\//, '')}`;
-  return 'http://localhost:3000';
-}
-
 export default async function CollectionPage({
   params,
 }: {
@@ -56,7 +42,7 @@ export default async function CollectionPage({
 
   const rows = await getCollectionSkills(collection.id);
   const serializedSkills = rows.map(({ skill }) => serializeSkill(skill));
-  const origin = siteOrigin();
+  const origin = getSiteUrl();
 
   const itemListJsonLd = {
     '@context': 'https://schema.org',
@@ -76,7 +62,7 @@ export default async function CollectionPage({
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(itemListJsonLd) }}
       />
       <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6">
         <header className="border-b border-border pb-8">
@@ -100,7 +86,7 @@ export default async function CollectionPage({
                 )}
               </p>
             </div>
-            <TrustBadge tier={collection.trustTier as TrustTier} className="w-fit" />
+            <TrustBadge tier={parseTrustTier(collection.trustTier)} className="w-fit" />
           </div>
         </header>
 
@@ -108,7 +94,26 @@ export default async function CollectionPage({
           className="prose-editorial mt-10 max-w-none text-[0.95rem] leading-relaxed text-foreground/90 [&_a]:text-primary [&_a]:underline [&_a]:underline-offset-4 [&_a]:hover:text-primary/80 [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-4 [&_blockquote]:text-muted-foreground [&_code]:rounded-md [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.9em] [&_h1]:mt-8 [&_h1]:text-2xl [&_h1]:font-semibold [&_h1]:tracking-tight [&_h1]:first:mt-0 [&_h2]:mt-7 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:tracking-tight [&_h3]:mt-6 [&_h3]:text-lg [&_h3]:font-semibold [&_li]:my-1 [&_ol]:my-4 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:my-4 [&_p]:first:mt-0 [&_pre]:my-4 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:border-border [&_pre]:bg-muted/50 [&_pre]:p-4 [&_pre]:font-mono [&_pre]:text-sm [&_strong]:font-semibold [&_ul]:my-4 [&_ul]:list-disc [&_ul]:pl-6"
           aria-label="Editorial"
         >
-          <ReactMarkdown>{collection.editorialContent}</ReactMarkdown>
+          <ReactMarkdown
+            components={{
+              a: ({ href, children, ...props }) => {
+                if (href && !/^https?:\/\//.test(href) && !href.startsWith('/') && !href.startsWith('#')) {
+                  return <span>{children}</span>;
+                }
+                const external = href?.startsWith('http') ?? false;
+                return (
+                  <a
+                    href={href}
+                    {...props}
+                    target={external ? '_blank' : undefined}
+                    rel={external ? 'noopener noreferrer' : undefined}
+                  >
+                    {children}
+                  </a>
+                );
+              },
+            }}
+          >{collection.editorialContent}</ReactMarkdown>
         </section>
 
         <section className="mt-12" aria-labelledby="collection-skills-heading">

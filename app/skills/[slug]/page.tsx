@@ -13,24 +13,12 @@ import {
   getSkillBySlug,
   getSkillCollections,
 } from "@/db/queries"
-import type { Platform, TrustTier } from "@/lib/types"
-import { PLATFORM_LABELS, PLATFORMS } from "@/lib/types"
+import { getSiteUrl, safeJsonLd } from "@/lib/site-url"
+import type { Platform } from "@/lib/types"
+import { isPlatform, PLATFORM_LABELS, parseTrustTier } from "@/lib/types"
 
 export const revalidate = 60
 export const dynamicParams = false
-
-function getSiteUrl(): string {
-  const fromEnv = process.env.NEXT_PUBLIC_SITE_URL
-  if (fromEnv) return fromEnv.replace(/\/$/, "")
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL.replace(/\/$/, "")}`
-  }
-  return "http://localhost:3000"
-}
-
-function isPlatform(value: string): value is Platform {
-  return (PLATFORMS as readonly string[]).includes(value)
-}
 
 export async function generateStaticParams() {
   const rows = await getAllSkillSlugs()
@@ -82,7 +70,7 @@ export default async function SkillDetailPage({
   if (!skill) notFound()
 
   const collectionsRows = await getSkillCollections(skill.id)
-  const tier = skill.trustTier as TrustTier
+  const tier = parseTrustTier(skill.trustTier)
   const siteUrl = getSiteUrl()
   const pageUrl = `${siteUrl}/skills/${slug}`
 
@@ -119,7 +107,7 @@ export default async function SkillDetailPage({
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }}
       />
       <article className="mx-auto max-w-4xl px-4 py-12 sm:px-6">
         <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">

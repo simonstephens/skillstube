@@ -32,6 +32,28 @@ export type Audience = (typeof AUDIENCES)[number];
 export type Platform = (typeof PLATFORMS)[number];
 export type Category = (typeof CATEGORIES)[number];
 
+export function isTrustTier(value: string): value is TrustTier {
+  return (TRUST_TIERS as readonly string[]).includes(value);
+}
+export function parseTrustTier(value: string): TrustTier {
+  return isTrustTier(value) ? value : 'unreviewed';
+}
+
+export function isAudience(value: string): value is Audience {
+  return (AUDIENCES as readonly string[]).includes(value);
+}
+
+export function isPlatform(value: string): value is Platform {
+  return (PLATFORMS as readonly string[]).includes(value);
+}
+
+export function isCategory(value: string): value is Category {
+  return (CATEGORIES as readonly string[]).includes(value);
+}
+export function parseCategory(value: string): Category {
+  return isCategory(value) ? value : 'development';
+}
+
 export const TRUST_TIER_META: Record<
   TrustTier,
   { label: string; description: string; colorClass: string }

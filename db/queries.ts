@@ -1,13 +1,35 @@
-import { count, eq, desc, sql, type AnyColumn } from 'drizzle-orm';
+import { count, eq, desc } from 'drizzle-orm';
 import { db } from './index';
 import { skills, collections, collectionSkills } from './schema';
 
-export function increment(column: AnyColumn, value = 1) {
-  return sql`${column} + ${value}`;
-}
-
 export async function getAllSkills() {
   return db.select().from(skills).orderBy(desc(skills.upvoteCount));
+}
+
+export async function getAllSkillCards() {
+  return db
+    .select({
+      id: skills.id,
+      slug: skills.slug,
+      name: skills.name,
+      author: skills.author,
+      authorUrl: skills.authorUrl,
+      description: skills.description,
+      summary: skills.summary,
+      trustTier: skills.trustTier,
+      audience: skills.audience,
+      category: skills.category,
+      riskLevel: skills.riskLevel,
+      worksWith: skills.worksWith,
+      tags: skills.tags,
+      stars: skills.stars,
+      upvoteCount: skills.upvoteCount,
+      bestFor: skills.bestFor,
+      createdAt: skills.createdAt,
+      updatedAt: skills.updatedAt,
+    })
+    .from(skills)
+    .orderBy(desc(skills.upvoteCount));
 }
 
 export async function getSkillBySlug(slug: string) {
@@ -21,6 +43,12 @@ export async function getSkillBySlug(slug: string) {
 
 export async function getAllSkillSlugs() {
   return db.select({ slug: skills.slug }).from(skills);
+}
+
+export async function getAllSkillSlugsAndNames() {
+  return db
+    .select({ slug: skills.slug, name: skills.name })
+    .from(skills);
 }
 
 export async function getRecentSkills(limit = 6) {

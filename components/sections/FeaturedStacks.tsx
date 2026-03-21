@@ -7,7 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import type { TrustTier } from '@/lib/types';
+import { parseTrustTier } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 export type FeaturedCollectionCard = {
@@ -59,7 +59,7 @@ export function FeaturedStacks({ collections, className }: FeaturedStacksProps) 
               >
                 <CardHeader className="gap-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <TrustBadge tier={c.trustTier as TrustTier} />
+                    <TrustBadge tier={parseTrustTier(c.trustTier)} />
                     {typeof c.skillCount === 'number' ? (
                       <span className="text-xs font-medium tabular-nums text-muted-foreground">
                         {c.skillCount}{' '}

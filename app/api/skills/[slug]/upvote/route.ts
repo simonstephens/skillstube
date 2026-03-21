@@ -1,6 +1,6 @@
 import { eq, sql } from 'drizzle-orm';
 
-import { db } from '@/db/client';
+import { db } from '@/db';
 import { skills } from '@/db/schema';
 import { isRateLimited } from '@/lib/rate-limit';
 
@@ -9,8 +9,9 @@ const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 function clientIp(request: Request): string {
   const forwarded = request.headers.get('x-forwarded-for');
   if (!forwarded) return 'unknown';
-  const first = forwarded.split(',')[0]?.trim();
-  return first || 'unknown';
+  const parts = forwarded.split(',').map((s) => s.trim());
+  // Rightmost IP is the one appended by the reverse proxy (Railway), not client-controlled
+  return parts.at(-1) || 'unknown';
 }
 
 function jsonResponse(body: unknown, status: number) {
@@ -22,7 +23,7 @@ export async function GET(
   context: { params: Promise<{ slug: string }> },
 ) {
   const { slug } = await context.params;
-  if (!SLUG_RE.test(slug)) {
+  if (slug.length > 128 || !SLUG_RE.test(slug)) {
     return jsonResponse({ error: 'Invalid slug' }, 400);
   }
 
@@ -48,7 +49,7 @@ export async function POST(
   context: { params: Promise<{ slug: string }> },
 ) {
   const { slug } = await context.params;
-  if (!SLUG_RE.test(slug)) {
+  if (slug.length > 128 || !SLUG_RE.test(slug)) {
     return jsonResponse({ error: 'Invalid slug' }, 400);
   }
 

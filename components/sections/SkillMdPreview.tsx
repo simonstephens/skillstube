@@ -50,6 +50,9 @@ export function SkillMdPreview({ content, githubUrl }: SkillMdPreviewProps) {
           <ReactMarkdown
             components={{
               a: ({ href, children, ...props }) => {
+                if (href && !/^https?:\/\//.test(href) && !href.startsWith('/') && !href.startsWith('#')) {
+                  return <span>{children}</span>
+                }
                 const external = href?.startsWith("http") ?? false
                 return (
                   <a

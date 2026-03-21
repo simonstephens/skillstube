@@ -143,11 +143,3 @@ export type SerializedSkill = Omit<Skill, 'createdAt' | 'updatedAt'> & {
   createdAt: string;
   updatedAt: string;
 };
-
-export type SerializedCollection = Omit<
-  Collection,
-  'createdAt' | 'updatedAt'
-> & {
-  createdAt: string;
-  updatedAt: string;
-};

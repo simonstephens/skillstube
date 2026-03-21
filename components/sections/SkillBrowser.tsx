@@ -25,6 +25,8 @@ import {
   PLATFORMS,
   TRUST_TIER_META,
   TRUST_TIERS,
+  isTrustTier,
+  isCategory,
   type Audience,
   type Category,
   type Platform,
@@ -149,13 +151,13 @@ export function SkillBrowser({ skills }: SkillBrowserProps) {
       if (!matchesAudience(skill, audienceFilter)) return false;
       if (
         trustFilter.length > 0 &&
-        !trustFilter.includes(skill.trustTier as TrustTier)
+        !(isTrustTier(skill.trustTier) && trustFilter.includes(skill.trustTier))
       ) {
         return false;
       }
       if (
         categoryFilter.length > 0 &&
-        !categoryFilter.includes(skill.category as Category)
+        !(isCategory(skill.category) && categoryFilter.includes(skill.category))
       ) {
         return false;
       }

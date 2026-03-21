@@ -2,8 +2,10 @@ import { Suspense } from 'react';
 import type { Metadata } from 'next';
 
 import { SkillBrowser } from '@/components/sections/SkillBrowser';
-import type { SerializedSkill } from '@/db/schema';
 import { getAllSkills } from '@/db/queries';
+import { serializeSkill } from '@/lib/serialize';
+
+export const revalidate = 60;
 
 export async function generateMetadata(): Promise<Metadata> {
   return {
@@ -15,11 +17,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function BrowsePage() {
   const skills = await getAllSkills();
-  const serialized: SerializedSkill[] = skills.map((s) => ({
-    ...s,
-    createdAt: s.createdAt.toISOString(),
-    updatedAt: s.updatedAt.toISOString(),
-  }));
+  const serialized = skills.map(serializeSkill);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">

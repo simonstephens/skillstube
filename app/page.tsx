@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import { headers } from 'next/headers';
 
 import { BrowseByAudience } from '@/components/sections/BrowseByAudience';
 import { BrowseByCategory } from '@/components/sections/BrowseByCategory';
@@ -7,28 +6,21 @@ import { FeaturedStacks } from '@/components/sections/FeaturedStacks';
 import { Hero } from '@/components/sections/Hero';
 import { RecentlyAdded } from '@/components/sections/RecentlyAdded';
 import {
-  getAllSkills,
+  getAllSkillSlugsAndNames,
   getCollectionSkillCountsByCollectionId,
   getFeaturedCollections,
   getRecentSkills,
 } from '@/db/queries';
 import { serializeSkill } from '@/lib/serialize';
+import { getSiteUrl, safeJsonLd } from '@/lib/site-url';
 
-async function siteUrl(): Promise<string> {
-  const h = await headers();
-  const host = h.get('x-forwarded-host') ?? h.get('host') ?? 'localhost:3000';
-  const proto =
-    h.get('x-forwarded-proto') ??
-    (host.startsWith('localhost') ? 'http' : 'https');
-  return `${proto}://${host}`;
-}
+export const revalidate = 60;
 
 const PAGE_DESCRIPTION =
   'Curated skill stacks for Claude Code, Cowork, and beyond. Every skill reviewed for quality and safety.';
 
 export async function generateMetadata(): Promise<Metadata> {
-  const base = await siteUrl();
-  const metadataBase = new URL(base);
+  const metadataBase = new URL(getSiteUrl());
 
   return {
     metadataBase,
@@ -52,11 +44,11 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function HomePage() {
-  const baseUrl = await siteUrl();
+  const baseUrl = getSiteUrl();
 
-  const [allSkills, recentSkills, collections, skillCountByCollectionId] =
+  const [allSkillNames, recentSkills, collections, skillCountByCollectionId] =
     await Promise.all([
-      getAllSkills(),
+      getAllSkillSlugsAndNames(),
       getRecentSkills(6),
       getFeaturedCollections(),
       getCollectionSkillCountsByCollectionId(),
@@ -81,8 +73,8 @@ export default async function HomePage() {
     url: baseUrl,
     mainEntity: {
       '@type': 'ItemList',
-      numberOfItems: allSkills.length,
-      itemListElement: allSkills.map((skill, index) => ({
+      numberOfItems: allSkillNames.length,
+      itemListElement: allSkillNames.map((skill, index) => ({
         '@type': 'ListItem',
         position: index + 1,
         name: skill.name,
@@ -95,7 +87,7 @@ export default async function HomePage() {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }}
       />
 
       <Hero />
