@@ -5,6 +5,7 @@ import { useState } from 'react';
 
 const NAV_LINKS = [
   { href: '/browse', label: 'Browse' },
+  { href: '/browse?type=plugin', label: 'Plugins' },
   { href: '/browse?audience=developer', label: 'For Developers' },
   { href: '/browse?audience=non-technical', label: 'For Non-Technical' },
 ];

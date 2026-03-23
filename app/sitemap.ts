@@ -1,32 +1,46 @@
 import type { MetadataRoute } from 'next';
-import { getAllSkillSlugs, getAllCollectionSlugs } from '@/db/queries';
+import {
+  getAllCollectionSlugs,
+  getAllPluginSlugs,
+  getAllSkillSlugs,
+} from '@/db/queries';
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://skillstube.com';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [skillSlugs, collectionSlugs] = await Promise.all([
+  const [pluginSlugs, skillSlugs, collectionSlugs] = await Promise.all([
+    getAllPluginSlugs(),
     getAllSkillSlugs(),
     getAllCollectionSlugs(),
   ]);
 
+  const now = new Date();
+
   const staticRoutes: MetadataRoute.Sitemap = [
     {
       url: BASE_URL,
-      lastModified: new Date(),
+      lastModified: now,
       changeFrequency: 'daily',
       priority: 1.0,
     },
     {
       url: `${BASE_URL}/browse`,
-      lastModified: new Date(),
+      lastModified: now,
       changeFrequency: 'daily',
       priority: 0.9,
     },
   ];
 
+  const pluginRoutes: MetadataRoute.Sitemap = pluginSlugs.map(({ slug }) => ({
+    url: `${BASE_URL}/plugins/${slug}`,
+    lastModified: now,
+    changeFrequency: 'weekly' as const,
+    priority: 0.8,
+  }));
+
   const skillRoutes: MetadataRoute.Sitemap = skillSlugs.map(({ slug }) => ({
     url: `${BASE_URL}/skills/${slug}`,
-    lastModified: new Date(),
+    lastModified: now,
     changeFrequency: 'weekly' as const,
     priority: 0.8,
   }));
@@ -34,11 +48,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const collectionRoutes: MetadataRoute.Sitemap = collectionSlugs.map(
     ({ slug }) => ({
       url: `${BASE_URL}/collections/${slug}`,
-      lastModified: new Date(),
+      lastModified: now,
       changeFrequency: 'weekly' as const,
       priority: 0.7,
     }),
   );
 
-  return [...staticRoutes, ...skillRoutes, ...collectionRoutes];
+  return [...staticRoutes, ...pluginRoutes, ...skillRoutes, ...collectionRoutes];
 }

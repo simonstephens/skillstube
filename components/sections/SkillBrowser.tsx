@@ -11,16 +11,18 @@ import {
   useState,
 } from 'react';
 
+import { PluginCard } from '@/components/ui/PluginCard';
 import { SkillCard } from '@/components/ui/SkillCard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import type { SerializedSkill } from '@/db/schema';
+import type { SerializedPlugin, SerializedSkill } from '@/db/schema';
 import {
   AUDIENCE_LABELS,
   AUDIENCES,
   CATEGORY_LABELS,
   CATEGORIES,
+  ENTITY_TYPE_LABELS,
   PLATFORM_LABELS,
   PLATFORMS,
   TRUST_TIER_META,
@@ -29,14 +31,20 @@ import {
   isCategory,
   type Audience,
   type Category,
+  type EntityType,
   type Platform,
   type TrustTier,
 } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 type SkillBrowserProps = {
+  plugins: Array<SerializedPlugin & { skillCount: number }>;
   skills: SerializedSkill[];
 };
+
+type BrowseItem =
+  | { entityType: 'plugin'; data: SerializedPlugin & { skillCount: number } }
+  | { entityType: 'skill'; data: SerializedSkill };
 
 function parseMultiParam<T extends string>(
   raw: string | null,
@@ -57,27 +65,35 @@ function parseAudience(raw: string | null): Audience | null {
     : null;
 }
 
-function matchesAudience(skill: SerializedSkill, filter: Audience | null) {
+function parseTypeFilter(raw: string | null): EntityType | null {
+  if (!raw) return null;
+  if (raw === 'plugin' || raw === 'skill') return raw;
+  return null;
+}
+
+function matchesAudience(item: BrowseItem, filter: Audience | null) {
   if (!filter) return true;
-  if (filter === 'both') return skill.audience === 'both';
+  const audience = item.data.audience;
+  if (filter === 'both') return audience === 'both';
   if (filter === 'developer') {
-    return skill.audience === 'developer' || skill.audience === 'both';
+    return audience === 'developer' || audience === 'both';
   }
   if (filter === 'non-technical') {
-    return skill.audience === 'non-technical' || skill.audience === 'both';
+    return audience === 'non-technical' || audience === 'both';
   }
   return true;
 }
 
-function matchesSearch(skill: SerializedSkill, q: string) {
+function matchesSearch(item: BrowseItem, q: string) {
   const needle = q.trim().toLowerCase();
   if (!needle) return true;
+  const d = item.data;
   const hay = [
-    skill.name,
-    skill.description,
-    skill.summary ?? '',
-    skill.author,
-    ...(skill.tags ?? []),
+    d.name,
+    d.description,
+    d.summary ?? '',
+    d.author,
+    ...(d.tags ?? []),
   ]
     .join(' ')
     .toLowerCase();
@@ -90,7 +106,7 @@ function toggleInList<T extends string>(list: T[], value: T): T[] {
   return [...list, value].sort();
 }
 
-export function SkillBrowser({ skills }: SkillBrowserProps) {
+export function SkillBrowser({ plugins, skills }: SkillBrowserProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -108,6 +124,7 @@ export function SkillBrowser({ skills }: SkillBrowserProps) {
   );
 
   const audienceFilter = parseAudience(searchParams.get('audience'));
+  const typeFilter = parseTypeFilter(searchParams.get('type'));
   const trustFilter = parseMultiParam(
     searchParams.get('trust'),
     TRUST_TIERS,
@@ -122,6 +139,11 @@ export function SkillBrowser({ skills }: SkillBrowserProps) {
   ) as Platform[];
   const sortParam = searchParams.get('sort');
   const sortMode = sortParam === 'alpha' ? 'alpha' : 'upvotes';
+
+  const allItems: BrowseItem[] = useMemo(() => [
+    ...plugins.map((p): BrowseItem => ({ entityType: 'plugin', data: p })),
+    ...skills.map((s): BrowseItem => ({ entityType: 'skill', data: s })),
+  ], [plugins, skills]);
 
   const replaceUrl = useCallback(
     (mutate: (p: URLSearchParams) => void) => {
@@ -147,44 +169,46 @@ export function SkillBrowser({ skills }: SkillBrowserProps) {
   }
 
   const filtered = useMemo(() => {
-    let list = skills.filter((skill) => {
-      if (!matchesAudience(skill, audienceFilter)) return false;
+    let list = allItems.filter((item) => {
+      if (typeFilter && item.entityType !== typeFilter) return false;
+      if (!matchesAudience(item, audienceFilter)) return false;
       if (
         trustFilter.length > 0 &&
-        !(isTrustTier(skill.trustTier) && trustFilter.includes(skill.trustTier))
+        !(isTrustTier(item.data.trustTier) && trustFilter.includes(item.data.trustTier))
       ) {
         return false;
       }
       if (
         categoryFilter.length > 0 &&
-        !(isCategory(skill.category) && categoryFilter.includes(skill.category))
+        !(isCategory(item.data.category) && categoryFilter.includes(item.data.category))
       ) {
         return false;
       }
       if (platformFilter.length > 0) {
-        const works = skill.worksWith ?? [];
+        const works = item.data.worksWith ?? [];
         const hit = platformFilter.some((p) => works.includes(p));
         if (!hit) return false;
       }
-      if (!matchesSearch(skill, searchInput)) return false;
+      if (!matchesSearch(item, searchInput)) return false;
       return true;
     });
 
     if (sortMode === 'alpha') {
       list = [...list].sort((a, b) =>
-        a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+        a.data.name.localeCompare(b.data.name, undefined, { sensitivity: 'base' }),
       );
     } else {
       list = [...list].sort((a, b) => {
-        const u = b.upvoteCount - a.upvoteCount;
+        const u = b.data.upvoteCount - a.data.upvoteCount;
         if (u !== 0) return u;
-        return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+        return a.data.name.localeCompare(b.data.name, undefined, { sensitivity: 'base' });
       });
     }
 
     return list;
   }, [
-    skills,
+    allItems,
+    typeFilter,
     audienceFilter,
     trustFilter,
     categoryFilter,
@@ -194,6 +218,7 @@ export function SkillBrowser({ skills }: SkillBrowserProps) {
   ]);
 
   const hasActiveFilters =
+    typeFilter !== null ||
     audienceFilter !== null ||
     trustFilter.length > 0 ||
     categoryFilter.length > 0 ||
@@ -207,6 +232,20 @@ export function SkillBrowser({ skills }: SkillBrowserProps) {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     setSearchInput('');
     router.replace('/browse', { scroll: false });
+  }
+
+  function setTypeFilter(value: EntityType | null) {
+    replaceUrl((p) => {
+      if (value === null || (typeFilter === value)) {
+        p.delete('type');
+      } else {
+        p.set('type', value);
+      }
+    });
+  }
+
+  function removeTypeChip() {
+    replaceUrl((p) => p.delete('type'));
   }
 
   function removeAudience() {
@@ -288,6 +327,38 @@ export function SkillBrowser({ skills }: SkillBrowserProps) {
 
   const filterPanel = (
     <div className="flex flex-col gap-6">
+      <div>
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Type
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant={typeFilter === null ? 'default' : 'outline'}
+            className={cn(typeFilter !== null && 'border-border')}
+            onClick={() => setTypeFilter(null)}
+          >
+            All
+          </Button>
+          {(['plugin', 'skill'] as const).map((t) => {
+            const active = typeFilter === t;
+            return (
+              <Button
+                key={t}
+                type="button"
+                size="sm"
+                variant={active ? 'default' : 'outline'}
+                className={cn(!active && 'border-border')}
+                onClick={() => setTypeFilter(t)}
+              >
+                {ENTITY_TYPE_LABELS[t]}s
+              </Button>
+            );
+          })}
+        </div>
+      </div>
+
       <div>
         <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Audience
@@ -387,7 +458,7 @@ export function SkillBrowser({ skills }: SkillBrowserProps) {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="max-w-xl flex-1">
           <label htmlFor="browse-search" className="sr-only">
-            Search skills
+            Search plugins and skills
           </label>
           <Input
             id="browse-search"
@@ -461,13 +532,26 @@ export function SkillBrowser({ skills }: SkillBrowserProps) {
               {(searchParams.get('q') ?? '').trim() ? (
                 <Badge variant="secondary" className="gap-1 pr-1">
                   <span className="max-w-[200px] truncate">
-                    “{searchParams.get('q')}”
+                    &ldquo;{searchParams.get('q')}&rdquo;
                   </span>
                   <button
                     type="button"
                     className="rounded p-0.5 hover:bg-muted"
                     aria-label="Remove search filter"
                     onClick={removeSearchChip}
+                  >
+                    <X className="size-3" />
+                  </button>
+                </Badge>
+              ) : null}
+              {typeFilter ? (
+                <Badge variant="secondary" className="gap-1 pr-1">
+                  {ENTITY_TYPE_LABELS[typeFilter]}s
+                  <button
+                    type="button"
+                    className="rounded p-0.5 hover:bg-muted"
+                    aria-label="Remove type filter"
+                    onClick={removeTypeChip}
                   >
                     <X className="size-3" />
                   </button>
@@ -551,7 +635,7 @@ export function SkillBrowser({ skills }: SkillBrowserProps) {
           {filtered.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border bg-muted/30 px-6 py-16 text-center">
               <p className="text-lg font-medium text-foreground">
-                No skills match your filters
+                No results match your filters
               </p>
               <p className="mt-2 text-sm text-muted-foreground">
                 Try clearing some filters or broadening your search.
@@ -567,9 +651,13 @@ export function SkillBrowser({ skills }: SkillBrowserProps) {
             </div>
           ) : (
             <ul className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {filtered.map((skill) => (
-                <li key={skill.id}>
-                  <SkillCard skill={skill} />
+              {filtered.map((item) => (
+                <li key={`${item.entityType}-${item.data.id}`}>
+                  {item.entityType === 'plugin' ? (
+                    <PluginCard plugin={item.data} />
+                  ) : (
+                    <SkillCard skill={item.data} />
+                  )}
                 </li>
               ))}
             </ul>

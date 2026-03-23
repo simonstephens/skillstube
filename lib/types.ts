@@ -109,3 +109,11 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   research: 'Research',
   automation: 'Automation',
 };
+
+export const ENTITY_TYPES = ['plugin', 'skill'] as const;
+export type EntityType = (typeof ENTITY_TYPES)[number];
+
+export const ENTITY_TYPE_LABELS: Record<EntityType, string> = {
+  plugin: 'Plugin',
+  skill: 'Skill',
+};
