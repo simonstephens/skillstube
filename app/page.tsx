@@ -2,16 +2,22 @@ import type { Metadata } from 'next';
 
 import { BrowseByAudience } from '@/components/sections/BrowseByAudience';
 import { BrowseByCategory } from '@/components/sections/BrowseByCategory';
+import { FeaturedPlugins } from '@/components/sections/FeaturedPlugins';
+import { FeaturedSkills } from '@/components/sections/FeaturedSkills';
 import { FeaturedStacks } from '@/components/sections/FeaturedStacks';
 import { Hero } from '@/components/sections/Hero';
 import { RecentlyAdded } from '@/components/sections/RecentlyAdded';
 import {
+  getAllPluginSlugsAndNames,
   getAllSkillSlugsAndNames,
-  getCollectionSkillCountsByCollectionId,
+  getCollectionItemCountsByCollectionId,
   getFeaturedCollections,
+  getFeaturedPlugins,
+  getFeaturedSkills,
+  getPluginSkillCount,
   getRecentSkills,
 } from '@/db/queries';
-import { serializeSkill } from '@/lib/serialize';
+import { serializePlugin, serializeSkill } from '@/lib/serialize';
 import { getSiteUrl, safeJsonLd } from '@/lib/site-url';
 
 export const revalidate = 60;
@@ -46,14 +52,32 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function HomePage() {
   const baseUrl = getSiteUrl();
 
-  const [allSkillNames, recentSkills, collections, skillCountByCollectionId] =
-    await Promise.all([
-      getAllSkillSlugsAndNames(),
-      getRecentSkills(6),
-      getFeaturedCollections(),
-      getCollectionSkillCountsByCollectionId(),
-    ]);
+  const [
+    allPluginNames,
+    allSkillNames,
+    featuredPluginsRaw,
+    featuredSkillsRaw,
+    recentSkills,
+    collections,
+    itemCountByCollectionId,
+  ] = await Promise.all([
+    getAllPluginSlugsAndNames(),
+    getAllSkillSlugsAndNames(),
+    getFeaturedPlugins(6),
+    getFeaturedSkills(4),
+    getRecentSkills(6),
+    getFeaturedCollections(),
+    getCollectionItemCountsByCollectionId(),
+  ]);
 
+  const featuredPlugins = await Promise.all(
+    featuredPluginsRaw.map(async (p) => ({
+      ...serializePlugin(p),
+      skillCount: await getPluginSkillCount(p.id),
+    })),
+  );
+
+  const featuredSkills = featuredSkillsRaw.map(serializeSkill);
   const serializedRecent = recentSkills.map(serializeSkill);
 
   const collectionCards = collections.map((c) => ({
@@ -62,7 +86,7 @@ export default async function HomePage() {
     name: c.name,
     description: c.description,
     trustTier: c.trustTier,
-    skillCount: skillCountByCollectionId.get(c.id) ?? 0,
+    skillCount: itemCountByCollectionId.get(c.id) ?? 0,
   }));
 
   const jsonLd = {
@@ -73,13 +97,21 @@ export default async function HomePage() {
     url: baseUrl,
     mainEntity: {
       '@type': 'ItemList',
-      numberOfItems: allSkillNames.length,
-      itemListElement: allSkillNames.map((skill, index) => ({
-        '@type': 'ListItem',
-        position: index + 1,
-        name: skill.name,
-        url: `${baseUrl}/skills/${skill.slug}`,
-      })),
+      numberOfItems: allPluginNames.length + allSkillNames.length,
+      itemListElement: [
+        ...allPluginNames.map((plugin, index) => ({
+          '@type': 'ListItem',
+          position: index + 1,
+          name: plugin.name,
+          url: `${baseUrl}/plugins/${plugin.slug}`,
+        })),
+        ...allSkillNames.map((skill, index) => ({
+          '@type': 'ListItem',
+          position: allPluginNames.length + index + 1,
+          name: skill.name,
+          url: `${baseUrl}/skills/${skill.slug}`,
+        })),
+      ],
     },
   };
 
@@ -91,6 +123,8 @@ export default async function HomePage() {
       />
 
       <Hero />
+      <FeaturedPlugins plugins={featuredPlugins} />
+      <FeaturedSkills skills={featuredSkills} />
       <FeaturedStacks collections={collectionCards} />
       <BrowseByAudience />
       <BrowseByCategory />

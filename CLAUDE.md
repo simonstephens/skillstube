@@ -20,7 +20,7 @@ Curated skills directory for Claude Code and Cowork users.
 - DB singleton at `db/client.ts`, schema at `db/schema.ts`, server-only guard at `db/index.ts`
 - Centralized queries at `db/queries.ts`
 - Const arrays for enums in `lib/types.ts` with derived union types
-- Content data in `content/skills.ts` and `content/collections.ts`
+- Content data in `content/plugins.ts`, `content/skills.ts`, and `content/collections.ts`
 - Server Components by default; Client Components only for interactive widgets
 - `output: 'standalone'` in next.config.ts for Railway
 
@@ -34,13 +34,17 @@ Curated skills directory for Claude Code and Cowork users.
 ## File Structure
 
 ```
-app/            — pages and API routes
+app/
+  plugins/[slug]/ — plugin detail page
+  skills/[slug]/  — skill detail page
+  collections/[slug]/ — collection detail page
+  api/            — API routes (upvote endpoints for plugins & skills)
 components/
-  layout/       — Header, Footer
-  sections/     — page-level sections
-  ui/           — shadcn + custom components
-content/        — curated skill and collection data
-db/             — schema, client, queries, migrations
-lib/            — types, utils, helpers
-scripts/        — seed script
+  layout/         — Header, Footer
+  sections/       — page-level sections (InstallInstructions, SafetySummary, etc.)
+  ui/             — shadcn + custom components (PluginCard, SkillCard, TrustBadge, etc.)
+content/          — curated plugin, skill, and collection data
+db/               — schema (plugins, skills, collections, collectionItems), client, queries, migrations
+lib/              — types, utils, helpers, serialize
+scripts/          — seed script
 ```

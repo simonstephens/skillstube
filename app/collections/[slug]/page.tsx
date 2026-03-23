@@ -1,11 +1,17 @@
-import { getAllCollectionSlugs, getCollectionBySlug, getCollectionSkills } from '@/db/queries';
 import { notFound } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 
 import { CopyButton } from '@/components/ui/CopyButton';
+import { PluginCard } from '@/components/ui/PluginCard';
 import { SkillCard } from '@/components/ui/SkillCard';
 import { TrustBadge } from '@/components/ui/TrustBadge';
-import { serializeSkill } from '@/lib/serialize';
+import {
+  getAllCollectionSlugs,
+  getCollectionBySlug,
+  getCollectionItems,
+  getPluginSkillCount,
+} from '@/db/queries';
+import { serializePlugin, serializeSkill } from '@/lib/serialize';
 import { getSiteUrl, safeJsonLd } from '@/lib/site-url';
 import { parseTrustTier } from '@/lib/types';
 
@@ -40,8 +46,16 @@ export default async function CollectionPage({
   const collection = await getCollectionBySlug(slug);
   if (!collection) notFound();
 
-  const rows = await getCollectionSkills(collection.id);
-  const serializedSkills = rows.map(({ skill }) => serializeSkill(skill));
+  const items = await getCollectionItems(collection.id);
+
+  const pluginSkillCounts = new Map<number, number>();
+  for (const item of items) {
+    if (item.type === 'plugin') {
+      const count = await getPluginSkillCount(item.plugin.id);
+      pluginSkillCounts.set(item.plugin.id, count);
+    }
+  }
+
   const origin = getSiteUrl();
 
   const itemListJsonLd = {
@@ -49,12 +63,14 @@ export default async function CollectionPage({
     '@type': 'ItemList',
     name: collection.name,
     description: collection.description,
-    numberOfItems: serializedSkills.length,
-    itemListElement: serializedSkills.map((skill, index) => ({
+    numberOfItems: items.length,
+    itemListElement: items.map((item, index) => ({
       '@type': 'ListItem',
-      position: rows[index]?.position ?? index + 1,
-      name: skill.name,
-      url: `${origin}/skills/${skill.slug}`,
+      position: item.position,
+      name: item.type === 'plugin' ? item.plugin.name : item.skill.name,
+      url: item.type === 'plugin'
+        ? `${origin}/plugins/${item.plugin.slug}`
+        : `${origin}/skills/${item.skill.slug}`,
     })),
   };
 
@@ -116,16 +132,30 @@ export default async function CollectionPage({
           >{collection.editorialContent}</ReactMarkdown>
         </section>
 
-        <section className="mt-12" aria-labelledby="collection-skills-heading">
-          <h2 id="collection-skills-heading" className="mb-6 text-xl font-semibold tracking-tight">
-            Skills in this collection
+        <section className="mt-12" aria-labelledby="collection-items-heading">
+          <h2 id="collection-items-heading" className="mb-6 text-xl font-semibold tracking-tight">
+            In this collection
           </h2>
           <ol className="m-0 grid list-none grid-cols-1 gap-4 p-0 sm:gap-6 md:grid-cols-2">
-            {serializedSkills.map((skill) => (
-              <li key={skill.id} className="min-w-0">
-                <SkillCard skill={skill} />
-              </li>
-            ))}
+            {items.map((item) => {
+              if (item.type === 'plugin') {
+                return (
+                  <li key={`plugin-${item.plugin.slug}`} className="min-w-0">
+                    <PluginCard
+                      plugin={{
+                        ...serializePlugin(item.plugin),
+                        skillCount: pluginSkillCounts.get(item.plugin.id) ?? 0,
+                      }}
+                    />
+                  </li>
+                );
+              }
+              return (
+                <li key={`skill-${item.skill.slug}`} className="min-w-0">
+                  <SkillCard skill={serializeSkill(item.skill)} />
+                </li>
+              );
+            })}
           </ol>
         </section>
 

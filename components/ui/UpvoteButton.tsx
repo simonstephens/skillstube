@@ -3,6 +3,7 @@
 import { ArrowUp, Check, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import type { UpvoteEntityType } from "@/lib/upvotes";
 import {
   addUpvote,
   hasUpvoted,
@@ -22,9 +23,11 @@ type UpvoteState =
 export function UpvoteButton({
   slug,
   initialCount,
+  entityType = "skill",
 }: {
   slug: string;
   initialCount: number;
+  entityType?: UpvoteEntityType;
 }) {
   const [state, setState] = useState<UpvoteState>("INITIALIZING");
   const [count, setCount] = useState(initialCount);
@@ -47,9 +50,9 @@ export function UpvoteButton({
     let cancelled = false;
 
     async function init() {
-      const voted = hasUpvoted(slug);
+      const voted = hasUpvoted(entityType, slug);
       try {
-        const res = await fetch(`/api/skills/${slug}/upvote`, {
+        const res = await fetch(`/api/${entityType === "plugin" ? "plugins" : "skills"}/${slug}/upvote`, {
           signal: ac.signal,
         });
         if (!res.ok) {
@@ -80,7 +83,7 @@ export function UpvoteButton({
       cancelled = true;
       ac.abort();
     };
-  }, [slug, initialCount]);
+  }, [slug, initialCount, entityType]);
 
   const handleClick = useCallback(async () => {
     if (state !== "IDLE") return;
@@ -88,7 +91,7 @@ export function UpvoteButton({
     setState("PENDING");
     const previousCount = count;
     setCount((c) => c + 1);
-    addUpvote(slug);
+    addUpvote(entityType, slug);
 
     const ac = new AbortController();
     postAbortRef.current = ac;
@@ -104,7 +107,7 @@ export function UpvoteButton({
     };
 
     try {
-      const res = await fetch(`/api/skills/${slug}/upvote`, {
+      const res = await fetch(`/api/${entityType === "plugin" ? "plugins" : "skills"}/${slug}/upvote`, {
         method: "POST",
         signal: ac.signal,
       });
@@ -119,17 +122,17 @@ export function UpvoteButton({
       }
 
       setCount(previousCount);
-      removeUpvote(slug);
+      removeUpvote(entityType, slug);
       setState("ERRORED");
       scheduleReturnToIdle();
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") {
         setCount(previousCount);
-        removeUpvote(slug);
+        removeUpvote(entityType, slug);
         return;
       }
       setCount(previousCount);
-      removeUpvote(slug);
+      removeUpvote(entityType, slug);
       setState("ERRORED");
       scheduleReturnToIdle();
     } finally {
@@ -137,7 +140,7 @@ export function UpvoteButton({
         postAbortRef.current = null;
       }
     }
-  }, [state, count, slug]);
+  }, [state, count, slug, entityType]);
 
   const disabled =
     state === "INITIALIZING" ||

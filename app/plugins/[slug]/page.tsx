@@ -2,21 +2,17 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 
-import { eq } from "drizzle-orm"
-
 import { InstallInstructions } from "@/components/sections/InstallInstructions"
-import { SafetySummary } from "@/components/sections/SafetySummary"
-import { SkillMdPreview } from "@/components/sections/SkillMdPreview"
 import { Badge } from "@/components/ui/badge"
 import { TrustBadge } from "@/components/ui/TrustBadge"
 import { UpvoteButton } from "@/components/ui/UpvoteButton"
-import { db } from "@/db"
 import {
-  getAllSkillSlugs,
-  getSkillBySlug,
-  getSkillCollections,
+  getAllPluginSlugs,
+  getPluginBySlug,
+  getPluginCollections,
+  getPluginSkillCount,
+  getPluginSkills,
 } from "@/db/queries"
-import { plugins } from "@/db/schema"
 import { getSiteUrl, safeJsonLd } from "@/lib/site-url"
 import type { Platform } from "@/lib/types"
 import { isPlatform, PLATFORM_LABELS, parseTrustTier } from "@/lib/types"
@@ -25,7 +21,7 @@ export const revalidate = 60
 export const dynamicParams = false
 
 export async function generateStaticParams() {
-  const rows = await getAllSkillSlugs()
+  const rows = await getAllPluginSlugs()
   return rows.map(({ slug }) => ({ slug }))
 }
 
@@ -35,19 +31,19 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>
 }): Promise<Metadata> {
   const { slug } = await params
-  const skill = await getSkillBySlug(slug)
-  if (!skill) {
-    return { title: "Skill not found" }
+  const plugin = await getPluginBySlug(slug)
+  if (!plugin) {
+    return { title: "Plugin not found" }
   }
 
-  const description = skill.summary ?? skill.description
-  const url = `${getSiteUrl()}/skills/${slug}`
+  const description = plugin.summary ?? plugin.description
+  const url = `${getSiteUrl()}/plugins/${slug}`
 
   return {
-    title: skill.name,
+    title: plugin.name,
     description,
     openGraph: {
-      title: skill.name,
+      title: plugin.name,
       description,
       url,
       type: "website",
@@ -55,7 +51,7 @@ export async function generateMetadata({
     },
     twitter: {
       card: "summary_large_image",
-      title: skill.name,
+      title: plugin.name,
       description,
     },
     alternates: {
@@ -64,35 +60,30 @@ export async function generateMetadata({
   }
 }
 
-export default async function SkillDetailPage({
+export default async function PluginDetailPage({
   params,
 }: {
   params: Promise<{ slug: string }>
 }) {
   const { slug } = await params
-  const skill = await getSkillBySlug(slug)
-  if (!skill) notFound()
+  const plugin = await getPluginBySlug(slug)
+  if (!plugin) notFound()
 
-  let parentPlugin: { slug: string; name: string } | null = null
-  if (skill.pluginId) {
-    const [p] = await db
-      .select({ slug: plugins.slug, name: plugins.name })
-      .from(plugins)
-      .where(eq(plugins.id, skill.pluginId))
-      .limit(1)
-    parentPlugin = p ?? null
-  }
+  const [childSkills, skillCount, collectionsRows] = await Promise.all([
+    getPluginSkills(plugin.id),
+    getPluginSkillCount(plugin.id),
+    getPluginCollections(plugin.id),
+  ])
 
-  const collectionsRows = await getSkillCollections(skill.id)
-  const tier = parseTrustTier(skill.trustTier)
+  const tier = parseTrustTier(plugin.trustTier)
   const siteUrl = getSiteUrl()
-  const pageUrl = `${siteUrl}/skills/${slug}`
+  const pageUrl = `${siteUrl}/plugins/${slug}`
 
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
-    name: skill.name,
-    description: skill.description,
+    name: plugin.name,
+    description: plugin.description,
     url: pageUrl,
     applicationCategory: "DeveloperApplication",
     offers: {
@@ -100,22 +91,22 @@ export default async function SkillDetailPage({
       price: "0",
       priceCurrency: "USD",
     },
-    ...(skill.githubUrl ? { codeRepository: skill.githubUrl } : {}),
+    ...(plugin.githubUrl ? { codeRepository: plugin.githubUrl } : {}),
     author: {
       "@type": "Person",
-      name: skill.author,
-      ...(skill.authorUrl ? { url: skill.authorUrl } : {}),
+      name: plugin.author,
+      ...(plugin.authorUrl ? { url: plugin.authorUrl } : {}),
     },
   }
 
   const hasGithubBlock =
-    skill.githubUrl !== null ||
-    skill.stars != null ||
-    skill.forks != null ||
-    skill.lastUpdated != null ||
-    skill.license != null
+    plugin.githubUrl !== null ||
+    plugin.stars != null ||
+    plugin.forks != null ||
+    plugin.lastUpdated != null ||
+    plugin.license != null
 
-  const platforms = skill.worksWith.filter(isPlatform)
+  const platforms = plugin.worksWith.filter(isPlatform)
 
   return (
     <>
@@ -124,56 +115,86 @@ export default async function SkillDetailPage({
         dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }}
       />
       <article className="mx-auto max-w-4xl px-4 py-12 sm:px-6">
-        {parentPlugin ? (
-          <div className="mb-4 text-sm text-muted-foreground">
-            Part of{" "}
-            <Link
-              href={`/plugins/${parentPlugin.slug}`}
-              className="text-primary hover:underline"
-            >
-              {parentPlugin.name}
-            </Link>
-          </div>
-        ) : null}
-
         <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <TrustBadge tier={tier} />
+              <Badge variant="secondary">Plugin</Badge>
               <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-                {skill.name}
+                {plugin.name}
               </h1>
             </div>
             <p className="text-sm text-muted-foreground">
               By{" "}
-              {skill.authorUrl ? (
+              {plugin.authorUrl ? (
                 <a
-                  href={skill.authorUrl}
+                  href={plugin.authorUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="font-medium text-foreground underline-offset-2 hover:underline"
                 >
-                  {skill.author}
+                  {plugin.author}
                 </a>
               ) : (
-                <span className="font-medium text-foreground">{skill.author}</span>
+                <span className="font-medium text-foreground">
+                  {plugin.author}
+                </span>
               )}
+              {skillCount > 0 ? (
+                <span className="ml-2 text-muted-foreground">
+                  &middot; {skillCount}{" "}
+                  {skillCount === 1 ? "skill" : "skills"}
+                </span>
+              ) : null}
             </p>
           </div>
-          <UpvoteButton slug={skill.slug} initialCount={skill.upvoteCount} entityType="skill" />
+          <UpvoteButton
+            slug={plugin.slug}
+            initialCount={plugin.upvoteCount}
+            entityType="plugin"
+          />
         </header>
 
         <p className="mt-6 text-base leading-relaxed text-muted-foreground">
-          {skill.description}
+          {plugin.description}
         </p>
 
-        <SafetySummary
-          riskLevel={skill.riskLevel}
-          safetySummary={skill.safetySummary}
-        />
+        {plugin.summary ? (
+          <p className="mt-4 text-sm leading-relaxed text-foreground/80">
+            {plugin.summary}
+          </p>
+        ) : null}
 
-        {Object.keys(skill.installInstructions).length > 0 ? (
-          <InstallInstructions instructions={skill.installInstructions} />
+        {Object.keys(plugin.installInstructions).length > 0 ? (
+          <InstallInstructions instructions={plugin.installInstructions} />
+        ) : null}
+
+        {childSkills.length > 0 ? (
+          <section aria-labelledby="skills-heading" className="mt-10">
+            <h2
+              id="skills-heading"
+              className="text-sm font-semibold text-foreground"
+            >
+              Included skills
+            </h2>
+            <ul className="mt-4 divide-y divide-border rounded-xl border border-border">
+              {childSkills.map((skill) => (
+                <li key={skill.id}>
+                  <Link
+                    href={`/skills/${skill.slug}`}
+                    className="flex flex-col gap-1 px-4 py-3 transition-colors hover:bg-muted/50"
+                  >
+                    <span className="font-medium text-foreground">
+                      {skill.name}
+                    </span>
+                    <span className="line-clamp-1 text-sm text-muted-foreground">
+                      {skill.description}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
         ) : null}
 
         {hasGithubBlock ? (
@@ -188,50 +209,50 @@ export default async function SkillDetailPage({
               GitHub
             </h2>
             <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-              {skill.githubUrl ? (
+              {plugin.githubUrl ? (
                 <div className="sm:col-span-2">
                   <dt className="text-muted-foreground">Repository</dt>
                   <dd className="mt-1">
                     <a
-                      href={skill.githubUrl}
+                      href={plugin.githubUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="break-all text-primary underline underline-offset-2"
                     >
-                      {skill.githubUrl}
+                      {plugin.githubUrl}
                     </a>
                   </dd>
                 </div>
               ) : null}
-              {skill.stars != null ? (
+              {plugin.stars != null ? (
                 <div>
                   <dt className="text-muted-foreground">Stars</dt>
                   <dd className="mt-1 font-medium tabular-nums text-foreground">
-                    {skill.stars.toLocaleString()}
+                    {plugin.stars.toLocaleString()}
                   </dd>
                 </div>
               ) : null}
-              {skill.forks != null ? (
+              {plugin.forks != null ? (
                 <div>
                   <dt className="text-muted-foreground">Forks</dt>
                   <dd className="mt-1 font-medium tabular-nums text-foreground">
-                    {skill.forks.toLocaleString()}
+                    {plugin.forks.toLocaleString()}
                   </dd>
                 </div>
               ) : null}
-              {skill.lastUpdated ? (
+              {plugin.lastUpdated ? (
                 <div>
                   <dt className="text-muted-foreground">Last updated</dt>
                   <dd className="mt-1 font-medium text-foreground">
-                    {skill.lastUpdated}
+                    {plugin.lastUpdated}
                   </dd>
                 </div>
               ) : null}
-              {skill.license ? (
+              {plugin.license ? (
                 <div>
                   <dt className="text-muted-foreground">License</dt>
                   <dd className="mt-1 font-medium text-foreground">
-                    {skill.license}
+                    {plugin.license}
                   </dd>
                 </div>
               ) : null}
@@ -267,7 +288,10 @@ export default async function SkillDetailPage({
             </h2>
             <div className="mt-3 flex flex-wrap gap-2">
               {collectionsRows.map(({ collection }) => (
-                <Link key={collection.id} href={`/collections/${collection.slug}`}>
+                <Link
+                  key={collection.id}
+                  href={`/collections/${collection.slug}`}
+                >
                   <Badge
                     variant="outline"
                     className="cursor-pointer transition-colors hover:bg-muted"
@@ -279,11 +303,6 @@ export default async function SkillDetailPage({
             </div>
           </section>
         ) : null}
-
-        <SkillMdPreview
-          content={skill.skillMdContent}
-          githubUrl={skill.githubUrl}
-        />
       </article>
     </>
   )
