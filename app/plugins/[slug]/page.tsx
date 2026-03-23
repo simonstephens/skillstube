@@ -10,7 +10,6 @@ import {
   getAllPluginSlugs,
   getPluginBySlug,
   getPluginCollections,
-  getPluginSkillCount,
   getPluginSkills,
 } from "@/db/queries"
 import { getSiteUrl, safeJsonLd } from "@/lib/site-url"
@@ -69,11 +68,12 @@ export default async function PluginDetailPage({
   const plugin = await getPluginBySlug(slug)
   if (!plugin) notFound()
 
-  const [childSkills, skillCount, collectionsRows] = await Promise.all([
+  const [childSkills, collectionsRows] = await Promise.all([
     getPluginSkills(plugin.id),
-    getPluginSkillCount(plugin.id),
     getPluginCollections(plugin.id),
   ])
+
+  const skillCount = childSkills.length
 
   const tier = parseTrustTier(plugin.trustTier)
   const siteUrl = getSiteUrl()

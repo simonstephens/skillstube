@@ -16,7 +16,7 @@ import { SkillCard } from '@/components/ui/SkillCard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import type { SerializedPlugin, SerializedSkill } from '@/db/schema';
+import type { SerializedPlugin, SkillCardData } from '@/db/schema';
 import {
   AUDIENCE_LABELS,
   AUDIENCES,
@@ -39,12 +39,12 @@ import { cn } from '@/lib/utils';
 
 type SkillBrowserProps = {
   plugins: Array<SerializedPlugin & { skillCount: number }>;
-  skills: SerializedSkill[];
+  skills: SkillCardData[];
 };
 
 type BrowseItem =
   | { entityType: 'plugin'; data: SerializedPlugin & { skillCount: number } }
-  | { entityType: 'skill'; data: SerializedSkill };
+  | { entityType: 'skill'; data: SkillCardData };
 
 function parseMultiParam<T extends string>(
   raw: string | null,
@@ -138,7 +138,7 @@ export function SkillBrowser({ plugins, skills }: SkillBrowserProps) {
     PLATFORMS,
   ) as Platform[];
   const sortParam = searchParams.get('sort');
-  const sortMode = sortParam === 'alpha' ? 'alpha' : 'upvotes';
+  const sortMode = sortParam === 'alpha' ? 'alpha' : sortParam === 'recent' ? 'recent' : 'upvotes';
 
   const allItems: BrowseItem[] = useMemo(() => [
     ...plugins.map((p): BrowseItem => ({ entityType: 'plugin', data: p })),
@@ -197,6 +197,13 @@ export function SkillBrowser({ plugins, skills }: SkillBrowserProps) {
       list = [...list].sort((a, b) =>
         a.data.name.localeCompare(b.data.name, undefined, { sensitivity: 'base' }),
       );
+    } else if (sortMode === 'recent') {
+      list = [...list].sort((a, b) => {
+        const ta = new Date(a.data.createdAt).getTime();
+        const tb = new Date(b.data.createdAt).getTime();
+        if (tb !== ta) return tb - ta;
+        return a.data.name.localeCompare(b.data.name, undefined, { sensitivity: 'base' });
+      });
     } else {
       list = [...list].sort((a, b) => {
         const u = b.data.upvoteCount - a.data.upvoteCount;
@@ -224,6 +231,7 @@ export function SkillBrowser({ plugins, skills }: SkillBrowserProps) {
     categoryFilter.length > 0 ||
     platformFilter.length > 0 ||
     sortMode === 'alpha' ||
+    sortMode === 'recent' ||
     (searchParams.get('q') ?? '').length > 0;
 
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
@@ -318,10 +326,10 @@ export function SkillBrowser({ plugins, skills }: SkillBrowserProps) {
     });
   }
 
-  function setSort(mode: 'upvotes' | 'alpha') {
+  function setSort(mode: 'upvotes' | 'alpha' | 'recent') {
     replaceUrl((p) => {
       if (mode === 'upvotes') p.delete('sort');
-      else p.set('sort', 'alpha');
+      else p.set('sort', mode);
     });
   }
 
@@ -489,6 +497,15 @@ export function SkillBrowser({ plugins, skills }: SkillBrowserProps) {
           <Button
             type="button"
             size="sm"
+            variant={sortMode === 'recent' ? 'default' : 'outline'}
+            className={cn(sortMode !== 'recent' && 'border-border')}
+            onClick={() => setSort('recent')}
+          >
+            Recently added
+          </Button>
+          <Button
+            type="button"
+            size="sm"
             variant={sortMode === 'alpha' ? 'default' : 'outline'}
             className={cn(sortMode !== 'alpha' && 'border-border')}
             onClick={() => setSort('alpha')}
@@ -609,6 +626,19 @@ export function SkillBrowser({ plugins, skills }: SkillBrowserProps) {
                   </button>
                 </Badge>
               ))}
+              {sortMode === 'recent' ? (
+                <Badge variant="secondary" className="gap-1 pr-1">
+                  Recently added
+                  <button
+                    type="button"
+                    className="rounded p-0.5 hover:bg-muted"
+                    aria-label="Reset sort to most upvoted"
+                    onClick={removeSortChip}
+                  >
+                    <X className="size-3" />
+                  </button>
+                </Badge>
+              ) : null}
               {sortMode === 'alpha' ? (
                 <Badge variant="secondary" className="gap-1 pr-1">
                   A–Z

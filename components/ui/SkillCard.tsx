@@ -3,15 +3,15 @@ import Link from "next/link"
 
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import type { SerializedSkill } from "@/db/schema"
+import type { SerializedSkill, SkillCardData } from "@/db/schema"
 import type { Platform } from "@/lib/types"
-import { PLATFORM_LABELS, parseTrustTier } from "@/lib/types"
+import { PLATFORM_LABELS, TRUST_TIER_META, parseTrustTier } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 import { TrustBadge } from "./TrustBadge"
 
 type SkillCardProps = {
-  skill: SerializedSkill
+  skill: SkillCardData | SerializedSkill
 }
 
 export function SkillCard({ skill }: SkillCardProps) {
@@ -25,8 +25,10 @@ export function SkillCard({ skill }: SkillCardProps) {
     >
       <Card
         className={cn(
-          "h-full border border-transparent shadow-none transition-all",
-          "hover:border-primary/20 hover:shadow-md"
+          "h-full border border-border/50 shadow-sm transition-all",
+          "hover:border-primary/20 hover:shadow-lg",
+          (parseTrustTier(skill.trustTier) === 'official' || parseTrustTier(skill.trustTier) === 'verified') &&
+            "border-l-2 border-l-trust-verified",
         )}
       >
         <CardContent className="flex flex-col gap-3 pt-4">

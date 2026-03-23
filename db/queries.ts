@@ -1,4 +1,4 @@
-import { count, eq, desc, isNull, sql } from 'drizzle-orm';
+import { count, eq, desc, isNull, inArray, sql, getTableColumns } from 'drizzle-orm';
 import { db } from './index';
 import { plugins, skills, collections, collectionItems } from './schema';
 
@@ -9,33 +9,15 @@ export async function getAllPlugins() {
 }
 
 export async function getAllPluginCards() {
-  const rows = await db
+  return db
     .select({
-      id: plugins.id,
-      slug: plugins.slug,
-      name: plugins.name,
-      author: plugins.author,
-      authorUrl: plugins.authorUrl,
-      description: plugins.description,
-      summary: plugins.summary,
-      trustTier: plugins.trustTier,
-      audience: plugins.audience,
-      category: plugins.category,
-      worksWith: plugins.worksWith,
-      tags: plugins.tags,
-      stars: plugins.stars,
-      upvoteCount: plugins.upvoteCount,
-      bestFor: plugins.bestFor,
-      featured: plugins.featured,
-      createdAt: plugins.createdAt,
-      updatedAt: plugins.updatedAt,
+      ...getTableColumns(plugins),
       skillCount: sql<number>`(
         SELECT COUNT(*) FROM skills WHERE skills.plugin_id = ${plugins.id}
       )`.as('skill_count'),
     })
     .from(plugins)
     .orderBy(desc(plugins.upvoteCount));
-  return rows;
 }
 
 export async function getPluginBySlug(slug: string) {
@@ -74,12 +56,28 @@ export async function getFeaturedPlugins(limit = 6) {
     .limit(limit);
 }
 
-export async function getPluginSkillCount(pluginId: number) {
-  const [row] = await db
-    .select({ count: count() })
+export async function getFeaturedPluginCards(limit = 6) {
+  return db
+    .select({
+      ...getTableColumns(plugins),
+      skillCount: sql<number>`(
+        SELECT COUNT(*) FROM skills WHERE skills.plugin_id = ${plugins.id}
+      )`.as('skill_count'),
+    })
+    .from(plugins)
+    .where(eq(plugins.featured, 1))
+    .orderBy(desc(plugins.upvoteCount))
+    .limit(limit);
+}
+
+export async function getPluginSkillCounts(pluginIds: number[]) {
+  if (pluginIds.length === 0) return new Map<number, number>();
+  const rows = await db
+    .select({ pluginId: skills.pluginId, count: count() })
     .from(skills)
-    .where(eq(skills.pluginId, pluginId));
-  return Number(row?.count ?? 0);
+    .where(inArray(skills.pluginId, pluginIds))
+    .groupBy(skills.pluginId);
+  return new Map(rows.map((r) => [r.pluginId!, Number(r.count)]));
 }
 
 // ─── Skill queries ───────────────────────────────────────────────────────────
@@ -172,6 +170,19 @@ export async function getRecentSkills(limit = 6) {
     .limit(limit);
 }
 
+export async function getRecentPluginCards(limit = 6) {
+  return db
+    .select({
+      ...getTableColumns(plugins),
+      skillCount: sql<number>`(
+        SELECT COUNT(*) FROM skills WHERE skills.plugin_id = ${plugins.id}
+      )`.as('skill_count'),
+    })
+    .from(plugins)
+    .orderBy(desc(plugins.createdAt))
+    .limit(limit);
+}
+
 export async function getFeaturedSkills(limit = 6) {
   return db
     .select()
@@ -222,6 +233,26 @@ export async function getCollectionItems(collectionId: number) {
     .where(eq(collectionItems.collectionId, collectionId))
     .orderBy(collectionItems.position);
 
+  const pluginIds = rows.filter((r) => r.pluginId != null).map((r) => r.pluginId!);
+  const skillIds = rows.filter((r) => r.skillId != null).map((r) => r.skillId!);
+
+  const [pluginMap, skillMap] = await Promise.all([
+    pluginIds.length > 0
+      ? db
+          .select()
+          .from(plugins)
+          .where(inArray(plugins.id, pluginIds))
+          .then((ps) => new Map(ps.map((p) => [p.id, p])))
+      : Promise.resolve(new Map<number, typeof plugins.$inferSelect>()),
+    skillIds.length > 0
+      ? db
+          .select()
+          .from(skills)
+          .where(inArray(skills.id, skillIds))
+          .then((ss) => new Map(ss.map((s) => [s.id, s])))
+      : Promise.resolve(new Map<number, typeof skills.$inferSelect>()),
+  ]);
+
   const result: Array<
     | { type: 'plugin'; plugin: typeof plugins.$inferSelect; position: number }
     | { type: 'skill'; skill: typeof skills.$inferSelect; position: number }
@@ -229,18 +260,10 @@ export async function getCollectionItems(collectionId: number) {
 
   for (const row of rows) {
     if (row.pluginId) {
-      const [plugin] = await db
-        .select()
-        .from(plugins)
-        .where(eq(plugins.id, row.pluginId))
-        .limit(1);
+      const plugin = pluginMap.get(row.pluginId);
       if (plugin) result.push({ type: 'plugin', plugin, position: row.position });
     } else if (row.skillId) {
-      const [skill] = await db
-        .select()
-        .from(skills)
-        .where(eq(skills.id, row.skillId))
-        .limit(1);
+      const skill = skillMap.get(row.skillId);
       if (skill) result.push({ type: 'skill', skill, position: row.position });
     }
   }
