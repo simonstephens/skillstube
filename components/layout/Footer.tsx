@@ -9,7 +9,10 @@ export function Footer() {
         </div>
         <nav className="flex gap-6 text-sm text-muted-foreground">
           <Link href="/browse" className="hover:text-foreground transition-colors">
-            Browse
+            All Plugins & Skills
+          </Link>
+          <Link href="/collections" className="hover:text-foreground transition-colors">
+            Collections
           </Link>
           <a
             href="https://github.com"

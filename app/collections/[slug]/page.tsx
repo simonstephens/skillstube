@@ -9,7 +9,7 @@ import {
   getAllCollectionSlugs,
   getCollectionBySlug,
   getCollectionItems,
-  getPluginSkillCount,
+  getPluginSkillCounts,
 } from '@/db/queries';
 import { serializePlugin, serializeSkill } from '@/lib/serialize';
 import { getSiteUrl, safeJsonLd } from '@/lib/site-url';
@@ -48,13 +48,10 @@ export default async function CollectionPage({
 
   const items = await getCollectionItems(collection.id);
 
-  const pluginSkillCounts = new Map<number, number>();
-  for (const item of items) {
-    if (item.type === 'plugin') {
-      const count = await getPluginSkillCount(item.plugin.id);
-      pluginSkillCounts.set(item.plugin.id, count);
-    }
-  }
+  const pluginIds = items
+    .filter((item): item is Extract<typeof item, { type: 'plugin' }> => item.type === 'plugin')
+    .map((item) => item.plugin.id);
+  const pluginSkillCounts = await getPluginSkillCounts(pluginIds);
 
   const origin = getSiteUrl();
 

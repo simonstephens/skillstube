@@ -79,7 +79,7 @@ export const skills = pgTable(
     id: serial('id').primaryKey(),
     slug: text('slug').notNull().unique(),
     pluginId: integer('plugin_id').references(() => plugins.id, {
-      onDelete: 'cascade',
+      onDelete: 'set null',
     }),
     name: text('name').notNull(),
     author: text('author').notNull(),
@@ -217,6 +217,29 @@ export type SkillSeed = Omit<
 >;
 
 export type SerializedSkill = Omit<Skill, 'createdAt' | 'updatedAt'> & {
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SkillCardData = {
+  id: number;
+  slug: string;
+  pluginId: number | null;
+  name: string;
+  author: string;
+  authorUrl: string | null;
+  description: string;
+  summary: string | null;
+  trustTier: string;
+  audience: string;
+  category: string;
+  riskLevel: string | null;
+  worksWith: Platform[];
+  tags: string[];
+  stars: number | null;
+  upvoteCount: number;
+  bestFor: string | null;
+  featured: number;
   createdAt: string;
   updatedAt: string;
 };

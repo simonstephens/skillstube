@@ -1,23 +1,20 @@
 import type { Metadata } from 'next';
 
-import { BrowseByAudience } from '@/components/sections/BrowseByAudience';
-import { BrowseByCategory } from '@/components/sections/BrowseByCategory';
-import { FeaturedPlugins } from '@/components/sections/FeaturedPlugins';
-import { FeaturedSkills } from '@/components/sections/FeaturedSkills';
-import { FeaturedStacks } from '@/components/sections/FeaturedStacks';
+import { CollectionsRow } from '@/components/sections/CollectionsRow';
+import { FeaturedPicks } from '@/components/sections/FeaturedPicks';
 import { Hero } from '@/components/sections/Hero';
-import { RecentlyAdded } from '@/components/sections/RecentlyAdded';
+import { JustAdded } from '@/components/sections/JustAdded';
 import {
   getAllPluginSlugsAndNames,
   getAllSkillSlugsAndNames,
   getCollectionItemCountsByCollectionId,
   getFeaturedCollections,
-  getFeaturedPlugins,
+  getFeaturedPluginCards,
   getFeaturedSkills,
-  getPluginSkillCount,
+  getRecentPluginCards,
   getRecentSkills,
 } from '@/db/queries';
-import { serializePlugin, serializeSkill } from '@/lib/serialize';
+import { serializeSkill } from '@/lib/serialize';
 import { getSiteUrl, safeJsonLd } from '@/lib/site-url';
 
 export const revalidate = 60;
@@ -55,30 +52,56 @@ export default async function HomePage() {
   const [
     allPluginNames,
     allSkillNames,
-    featuredPluginsRaw,
+    featuredPluginRows,
     featuredSkillsRaw,
-    recentSkills,
+    recentPluginRows,
+    recentSkillsRaw,
     collections,
     itemCountByCollectionId,
   ] = await Promise.all([
     getAllPluginSlugsAndNames(),
     getAllSkillSlugsAndNames(),
-    getFeaturedPlugins(6),
-    getFeaturedSkills(4),
-    getRecentSkills(6),
+    getFeaturedPluginCards(5),
+    getFeaturedSkills(5),
+    getRecentPluginCards(4),
+    getRecentSkills(4),
     getFeaturedCollections(),
     getCollectionItemCountsByCollectionId(),
   ]);
 
-  const featuredPlugins = await Promise.all(
-    featuredPluginsRaw.map(async (p) => ({
-      ...serializePlugin(p),
-      skillCount: await getPluginSkillCount(p.id),
+  const featuredItems = [
+    ...featuredPluginRows.map((p) => ({
+      type: 'plugin' as const,
+      data: {
+        ...p,
+        createdAt: p.createdAt.toISOString(),
+        updatedAt: p.updatedAt.toISOString(),
+      },
     })),
-  );
+    ...featuredSkillsRaw.map((s) => ({
+      type: 'skill' as const,
+      data: serializeSkill(s),
+    })),
+  ]
+    .sort((a, b) => b.data.upvoteCount - a.data.upvoteCount)
+    .slice(0, 8);
 
-  const featuredSkills = featuredSkillsRaw.map(serializeSkill);
-  const serializedRecent = recentSkills.map(serializeSkill);
+  const recentItems = [
+    ...recentPluginRows.map((p) => ({
+      type: 'plugin' as const,
+      data: {
+        ...p,
+        createdAt: p.createdAt.toISOString(),
+        updatedAt: p.updatedAt.toISOString(),
+      },
+    })),
+    ...recentSkillsRaw.map((s) => ({
+      type: 'skill' as const,
+      data: serializeSkill(s),
+    })),
+  ]
+    .sort((a, b) => new Date(b.data.createdAt).getTime() - new Date(a.data.createdAt).getTime())
+    .slice(0, 4);
 
   const collectionCards = collections.map((c) => ({
     id: c.id,
@@ -86,7 +109,7 @@ export default async function HomePage() {
     name: c.name,
     description: c.description,
     trustTier: c.trustTier,
-    skillCount: itemCountByCollectionId.get(c.id) ?? 0,
+    itemCount: itemCountByCollectionId.get(c.id) ?? 0,
   }));
 
   const jsonLd = {
@@ -123,12 +146,9 @@ export default async function HomePage() {
       />
 
       <Hero />
-      <FeaturedPlugins plugins={featuredPlugins} />
-      <FeaturedSkills skills={featuredSkills} />
-      <FeaturedStacks collections={collectionCards} />
-      <BrowseByAudience />
-      <BrowseByCategory />
-      <RecentlyAdded skills={serializedRecent} />
+      <FeaturedPicks items={featuredItems} />
+      <CollectionsRow collections={collectionCards} />
+      <JustAdded items={recentItems} />
     </>
   );
 }
