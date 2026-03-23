@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "drizzle-kit migrate && next build && cp -r .next/static .next/standalone/.next/static && cp -r public .next/standalone/public",
+    "build": "drizzle-kit migrate && next build && cp -r .next/static .next/standalone/.next/static && if [ -d public ]; then cp -r public .next/standalone/public; fi",
     "start": "HOSTNAME=0.0.0.0 node .next/standalone/server.js",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
