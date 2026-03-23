@@ -1,9 +1,8 @@
-import { Suspense } from 'react';
 import type { Metadata } from 'next';
 
 import { SkillBrowser } from '@/components/sections/SkillBrowser';
 import { getAllPluginCards, getAllSkillCards } from '@/db/queries';
-import type { SerializedPlugin, SerializedSkill } from '@/db/schema';
+import { serializePlugin } from '@/lib/serialize';
 
 export const revalidate = 60;
 
@@ -15,32 +14,34 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default async function BrowsePage() {
+export default async function BrowsePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const params = await searchParams;
+  const typeFilter = typeof params.type === 'string' ? params.type : null;
+
   const [pluginRows, skillRows] = await Promise.all([
-    getAllPluginCards(),
-    getAllSkillCards(),
+    typeFilter !== 'skill' ? getAllPluginCards() : Promise.resolve([]),
+    typeFilter !== 'plugin' ? getAllSkillCards() : Promise.resolve([]),
   ]);
 
   const serializedPlugins = pluginRows.map((p) => ({
-    ...p,
-    createdAt: p.createdAt.toISOString(),
-    updatedAt: p.updatedAt.toISOString(),
-  })) as Array<SerializedPlugin & { skillCount: number }>;
+    ...serializePlugin(p),
+    skillCount: Number(p.skillCount ?? 0),
+  }));
 
   const serializedSkills = skillRows.map((s) => ({
     ...s,
     createdAt: s.createdAt.toISOString(),
     updatedAt: s.updatedAt.toISOString(),
-  })) as SerializedSkill[];
+  }));
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
       <h1 className="mb-8 text-3xl font-bold tracking-tight">Browse Plugins & Skills</h1>
-      <Suspense
-        fallback={<div className="text-muted-foreground">Loading...</div>}
-      >
-        <SkillBrowser plugins={serializedPlugins} skills={serializedSkills} />
-      </Suspense>
+      <SkillBrowser plugins={serializedPlugins} skills={serializedSkills} />
     </div>
   );
 }

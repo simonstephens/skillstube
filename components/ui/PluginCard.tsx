@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import type { SerializedPlugin } from "@/db/schema"
 import type { Platform } from "@/lib/types"
-import { PLATFORM_LABELS, parseTrustTier } from "@/lib/types"
+import { PLATFORM_LABELS, TRUST_TIER_META, parseTrustTier } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 import { TrustBadge } from "./TrustBadge"
@@ -25,8 +25,10 @@ export function PluginCard({ plugin }: PluginCardProps) {
     >
       <Card
         className={cn(
-          "h-full border border-transparent shadow-none transition-all",
-          "hover:border-primary/20 hover:shadow-md"
+          "h-full border border-border/50 shadow-sm transition-all",
+          "hover:border-primary/20 hover:shadow-lg",
+          (parseTrustTier(plugin.trustTier) === 'official' || parseTrustTier(plugin.trustTier) === 'verified') &&
+            "border-l-2 border-l-trust-verified",
         )}
       >
         <CardContent className="flex flex-col gap-3 pt-4">
