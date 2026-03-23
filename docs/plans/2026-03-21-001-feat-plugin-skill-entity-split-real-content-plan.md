@@ -1,7 +1,7 @@
 ---
 title: "feat: Plugin-Skill Entity Split with Real Curated Content"
 type: feat
-status: active
+status: completed
 date: 2026-03-21
 origin: docs/brainstorms/2026-03-21-information-architecture-plugins-skills-requirements.md
 ---
