@@ -51,7 +51,7 @@ export function Hero({ className }: { className?: string }) {
               </svg>
               <input
                 type="search"
-                placeholder="Search plugins, skills, and collections..."
+                placeholder="Search plugins and skills..."
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 className={cn(

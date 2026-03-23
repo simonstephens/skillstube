@@ -11,6 +11,9 @@ export function Footer() {
           <Link href="/browse" className="hover:text-foreground transition-colors">
             All Plugins & Skills
           </Link>
+          <Link href="/collections" className="hover:text-foreground transition-colors">
+            Collections
+          </Link>
           <a
             href="https://github.com"
             target="_blank"
